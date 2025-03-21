@@ -1,45 +1,83 @@
+/*
+========================================================================================================================================================================
+	Title: Hours by Phase - Technology Solutions
+	Purpose: Create a crystal report that references this view.  Shows projected hours, Estimated, hours, JTD, and Percent complete for selected parameter for time frame.     
+	Author: Gabe Green
+	Created: 3/20/25
+	Last Edited: 3/20/25
+	Change Log: 
+========================================================================================================================================================================
+*/
+
+
 WITH CTE AS (
+--Use a sub query to aggregate inner queries before adding aggregations dependendant on inner queries 
 	SELECT 
 		 phases.Job_Number
-		--,jobs.Job_Description
+		,jobs.Job_Description
 		,phases.Phase_Code
+		,phases.Description
 		,phases.Cost_Type
-		,ISNULL(SUM(trans.JTD_Hours),0) JTD_Hours
 		,ISNULL(SUM(pchist.Projected_Hours),0) Projected_Hours
 		,chng.Est_Hours
+		,ISNULL(SUM(trans.JTD_Hours),0) JTD_Hours
+		,trans.Tran_Date
+		
+
 		
 
 	
 	FROM
 		JC_PHASE_MASTER_MC phases WITH (NOLOCK)
+		--Use left joins to phase master table to show all phases for a project regardless of transaction history 	
 	
-	
+		
 		LEFT OUTER JOIN (
+		--Add subqueires for transaction tables and change order tables to avoid nested joins
 				SELECT 
 					job_number
 					,phase_code
 					,SUM(total_hours) JTD_Hours 
-				FROM JC_TRANSACTION_HISTORY_MC WITH (NOLOCK)
-				GROUP BY Job_Number, Phase_Code
+					,CAST(Tran_Date_Text AS DATE) Tran_Date 
+				FROM 
+					JC_TRANSACTION_HISTORY_MC WITH (NOLOCK)
+				GROUP BY 
+					Job_Number
+					,Phase_Code
+					,Tran_Date_Text
 				) trans 
 			ON phases.job_number = trans.job_number 
 			AND phases.Phase_Code = trans.Phase_Code
+			
 	
-	
+		
+
 		LEFT OUTER JOIN (
-				SELECT DISTINCT 
-					Job
+				SELECT 
+					Company_Code
+					,Job
 					,Phase
+					,Cost_Type
 					,sum(Projected_Hours) Projected_Hours
-				FROM JC_PROJ_COST_HISTORY_MC WITH (NOLOCK)
+				FROM 
+					JC_PROJ_COST_HISTORY_MC WITH (NOLOCK)
 				GROUP BY 
-					Job
+					Company_Code
+					,Job
 					,Phase
+					,Cost_Type
+					
 		) pchist 
 		ON phases.Job_Number = pchist.Job 
 		AND pchist.Phase = phases.Phase_Code
-
-		LEFT OUTER JOIN (
+		AND pchist.Cost_Type = phases.Cost_Type
+		AND pchist.Company_Code = phases.Company_Code
+	
+		--Projected cost tables contain projection data 
+		
+	
+	
+	LEFT OUTER JOIN (
 		
 			SELECT 
 				p.Job_Number
@@ -102,20 +140,24 @@ WITH CTE AS (
 		) chng
 			ON chng.Job_Number = phases.Job_Number
 			AND chng.Phase_Code = phases.Phase_Code
-	
-		/*LEFT OUTER JOIN JC_JOB_MASTER_MC jobs WITH (NOLOCK)
+			AND chng.Cost_Type = phases.Cost_Type
+			--Change order subqueries add estimated hours for approved and executed change orders
+
+	LEFT OUTER JOIN JC_JOB_MASTER_MC jobs WITH (NOLOCK)
 			on jobs.Job_Number = phases.Job_Number
 	
-			*/
+		
 	WHERE 
 		phases.Company_Code = 'EEI'
-		and LTRIM(phases.Job_Number) like '25607'
+		--and LTRIM(phases.Job_Number) like '25607'
 	GROUP BY
 		phases.job_number
-		--,jobs.Job_Description
+		,jobs.Job_Description
 		,phases.Phase_Code
+		,phases.Description
 		,phases.Cost_Type
 		,chng.Est_Hours
+		,trans.Tran_Date
 
 )
 SELECT 
@@ -129,4 +171,9 @@ SELECT
 	,Est_Hours - JTD_Hours Remaining_Hours_Estimated
 	,ISNULL(JTD_Hours/NULLIF(Est_Hours,0),0) * 100 Estimated_Percent_Complete
 
-FROM CTE;
+FROM CTE
+WHERE
+	LTRIM(Job_Number) like '25607'
+
+ORDER BY 
+	Phase_Code
