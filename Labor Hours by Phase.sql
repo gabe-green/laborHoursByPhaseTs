@@ -172,8 +172,8 @@ SELECT
 	,ISNULL(JTD_Hours/NULLIF(Est_Hours,0),0) * 100 Estimated_Percent_Complete
 
 FROM CTE
-WHERE
-	LTRIM(Job_Number) like '25607'
+--WHERE
+	--LTRIM(Job_Number) like '25607'
 
 ORDER BY 
 	Phase_Code
